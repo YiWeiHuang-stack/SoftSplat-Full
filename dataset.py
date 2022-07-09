@@ -13,10 +13,7 @@ class Vimeo90k(data.Dataset):
         test_list = os.path.join(path, 'tri_testlist.txt')
         self.frame_list = os.path.join(path, 'sequences')
         self.is_train = is_train
-        if self.is_train:
-            triplet_list = train_list
-        else:
-            triplet_list = test_list
+        triplet_list = train_list if self.is_train else test_list
         with open(triplet_list) as triplet_list_file:
             triplet_list = triplet_list_file.readlines()
             triplet_list_file.close()
@@ -31,7 +28,7 @@ class Vimeo90k(data.Dataset):
             triplet_path = triplet_path[:-1]
         try:
             vid_no, seq_no = triplet_path.split('/')
-            name = vid_no + '_' + seq_no
+            name = f'{vid_no}_{seq_no}'
         except:
             name = triplet_path
         triplet_path = os.path.join(self.frame_list, triplet_path)
@@ -54,10 +51,7 @@ class Vimeo90k(data.Dataset):
 
             order_reverse = randint(0, 1)
             if order_reverse == 1:
-                tmp = im1
-                im1 = im3
-                im3 = tmp
-
+                im1, im3 = im3, im1
         im1 = to_tensor(im1)
         im2 = to_tensor(im2)
         im3 = to_tensor(im3)

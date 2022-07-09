@@ -41,12 +41,17 @@ class BackWarp(nn.Module):
         # stacking X and Y
         grid = torch.stack((x, y), dim=-1)
 
-        # Sample pixels using bilinear interpolation.
-        if self.clip:
-            output = grid_sample(img, grid, mode='bilinear', align_corners=True, padding_mode='border')
-        else:
-            output = grid_sample(img, grid, mode='bilinear', align_corners=True)
-        return output
+        return (
+            grid_sample(
+                img,
+                grid,
+                mode='bilinear',
+                align_corners=True,
+                padding_mode='border',
+            )
+            if self.clip
+            else grid_sample(img, grid, mode='bilinear', align_corners=True)
+        )
 
 
 class SoftSplatBaseline(nn.Module):
