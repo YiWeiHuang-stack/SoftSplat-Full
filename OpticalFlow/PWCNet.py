@@ -190,7 +190,7 @@ class PWCNet(torch.nn.Module):
 
                     tensorFeat = torch.cat([tensorVolume], 1)
 
-                elif objectPrevious is not None:
+                else:
                     tensorFlow = self.moduleUpflow(objectPrevious['tensorFlow'])
                     tensorFeat = self.moduleUpfeat(objectPrevious['tensorFeat'])
 

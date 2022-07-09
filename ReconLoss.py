@@ -39,8 +39,7 @@ class CensusLoss(nn.Module):
     def valid_mask(self, x, padding):
         b, _, h, w = x.shape
         valid_regions = torch.ones(b, 1, h - 2 * padding, w - 2 * padding).float().to(self.device)
-        valid_mask = pad(valid_regions, [padding, padding, padding, padding])
-        return valid_mask
+        return pad(valid_regions, [padding, padding, padding, padding])
 
     def forward(self, x0, x1):
         _x0 = self.census_transform(self.rgb2gray(x0))
@@ -86,13 +85,12 @@ class LaplacianLoss(nn.Module):
 
     def conv_gauss(self, img, kernel):
         img = pad(img, (2, 2, 2, 2), mode='reflect')
-        out = conv2d(img, kernel, groups=img.shape[1])
-        return out
+        return conv2d(img, kernel, groups=img.shape[1])
 
     def laplacian_pyramid(self, img, max_levels=3):
         current = img
         pyr = []
-        for level in range(max_levels):
+        for _ in range(max_levels):
             filtered = self.conv_gauss(current, self.kernel)
             down = self.downsample(filtered)
             up = self.upsample(down)

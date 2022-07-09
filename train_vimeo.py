@@ -64,7 +64,7 @@ def train():
     elif args.loss_type == 'Census':
         loss_fn = CensusLoss()
 
-    if not args.resume == 0:  # if resume training
+    if args.resume != 0:  # if resume training
         print('loading checkpoints...')
         ckpt = torch.load(save_path)
         model.module.load_state_dict(ckpt['model'])
@@ -97,7 +97,7 @@ def train():
         epoch_train_loss = 0
         model.train()
         pbar = tqdm(train_loader)
-        for i, data in enumerate(pbar):
+        for data in pbar:
             input_frames, target_frame, target_t, _ = data
             input_frames = input_frames.cuda().float()
             target_frame = target_frame.cuda().float()
@@ -128,9 +128,8 @@ def train():
             if prev_best is not None:
                 shutil.rmtree(prev_best)
             prev_best = cur_val_path
-        else:
-            if prev_best is not None:
-                shutil.rmtree(cur_val_path)
+        elif prev_best is not None:
+            shutil.rmtree(cur_val_path)
 
     print('end of training.')
     print('final validation.')
@@ -145,9 +144,8 @@ def train():
         # remove previous best validation.
         if prev_best is not None:
             shutil.rmtree(prev_best)
-    else:
-        if prev_best is not None:
-            shutil.rmtree(cur_val_path)
+    elif prev_best is not None:
+        shutil.rmtree(cur_val_path)
     print(f'Final model PSNR: {best.item()}')
 
 

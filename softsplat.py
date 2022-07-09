@@ -167,9 +167,9 @@ def cupy_kernel(strFunction, objVariables):
             break
         # end
 
-        intArg = int(objMatch.group(2))
+        intArg = int(objMatch[2])
 
-        strTensor = objMatch.group(4)
+        strTensor = objMatch[4]
         intSizes = objVariables[strTensor].size()
 
         strKernel = strKernel.replace(objMatch.group(), str(intSizes[intArg]))
@@ -182,14 +182,14 @@ def cupy_kernel(strFunction, objVariables):
             break
         # end
 
-        intArgs = int(objMatch.group(2))
-        strArgs = objMatch.group(4).split(',')
+        intArgs = int(objMatch[2])
+        strArgs = objMatch[4].split(',')
 
         strTensor = strArgs[0]
         intStrides = objVariables[strTensor].stride()
         strIndex = [ '((' + strArgs[intArg + 1].replace('{', '(').replace('}', ')').strip() + ')*' + str(intStrides[intArg]) + ')' for intArg in range(intArgs) ]
 
-        strKernel = strKernel.replace(objMatch.group(0), '(' + str.join('+', strIndex) + ')')
+        strKernel = strKernel.replace(objMatch[0], '(' + str.join('+', strIndex) + ')')
     # end
 
     while True:
@@ -199,14 +199,17 @@ def cupy_kernel(strFunction, objVariables):
             break
         # end
 
-        intArgs = int(objMatch.group(2))
-        strArgs = objMatch.group(4).split(',')
+        intArgs = int(objMatch[2])
+        strArgs = objMatch[4].split(',')
 
         strTensor = strArgs[0]
         intStrides = objVariables[strTensor].stride()
         strIndex = [ '((' + strArgs[intArg + 1].replace('{', '(').replace('}', ')').strip() + ')*' + str(intStrides[intArg]) + ')' for intArg in range(intArgs) ]
 
-        strKernel = strKernel.replace(objMatch.group(0), strTensor + '[' + str.join('+', strIndex) + ']')
+        strKernel = strKernel.replace(
+            objMatch[0], f'{strTensor}[' + str.join('+', strIndex) + ']'
+        )
+
     # end
 
     return strKernel
@@ -229,23 +232,35 @@ class _FunctionSoftsplat(torch.autograd.Function):
         assert(intInputHeight == intFlowHeight)
         assert(intInputWidth == intFlowWidth)
 
-        input = input.contiguous(); assert(input.is_cuda == True)
-        flow = flow.contiguous(); assert(flow.is_cuda == True)
+        input = input.contiguous()
+        assert(input.is_cuda == True)
+        flow = flow.contiguous()
+        assert(flow.is_cuda == True)
 
         output = input.new_zeros([ intSamples, intInputDepth, intInputHeight, intInputWidth ])
 
         if input.is_cuda == True:
             n = output.nelement()
-            cupy_launch('kernel_Softsplat_updateOutput', cupy_kernel('kernel_Softsplat_updateOutput', {
-                'input': input,
-                'flow': flow,
-                'output': output
-            }))(
-                grid=tuple([ int((n + 512 - 1) / 512), 1, 1 ]),
-                block=tuple([ 512, 1, 1 ]),
-                args=[ cupy.int32(n), input.data_ptr(), flow.data_ptr(), output.data_ptr() ],
-                stream=collections.namedtuple('Stream', 'ptr')(torch.cuda.current_stream().cuda_stream)
+            cupy_launch(
+                'kernel_Softsplat_updateOutput',
+                cupy_kernel(
+                    'kernel_Softsplat_updateOutput',
+                    {'input': input, 'flow': flow, 'output': output},
+                ),
+            )(
+                grid=(int((n + 512 - 1) / 512), 1, 1),
+                block=(512, 1, 1),
+                args=[
+                    cupy.int32(n),
+                    input.data_ptr(),
+                    flow.data_ptr(),
+                    output.data_ptr(),
+                ],
+                stream=collections.namedtuple('Stream', 'ptr')(
+                    torch.cuda.current_stream().cuda_stream
+                ),
             )
+
 
         elif input.is_cuda == False:
             raise NotImplementedError()
@@ -269,7 +284,8 @@ class _FunctionSoftsplat(torch.autograd.Function):
         assert(intInputHeight == intFlowHeight)
         assert(intInputWidth == intFlowWidth)
 
-        gradOutput = gradOutput.contiguous(); assert(gradOutput.is_cuda == True)
+        gradOutput = gradOutput.contiguous()
+        assert(gradOutput.is_cuda == True)
 
         gradInput = input.new_zeros([ intSamples, intInputDepth, intInputHeight, intInputWidth ]) if self.needs_input_grad[0] == True else None
         gradFlow = input.new_zeros([ intSamples, intFlowDepth, intFlowHeight, intFlowWidth ]) if self.needs_input_grad[1] == True else None
@@ -277,35 +293,67 @@ class _FunctionSoftsplat(torch.autograd.Function):
         if input.is_cuda == True:
             if gradInput is not None:
                 n = gradInput.nelement()
-                cupy_launch('kernel_Softsplat_updateGradInput', cupy_kernel('kernel_Softsplat_updateGradInput', {
-                    'input': input,
-                    'flow': flow,
-                    'gradOutput': gradOutput,
-                    'gradInput': gradInput,
-                    'gradFlow': gradFlow
-                }))(
-                    grid=tuple([ int((n + 512 - 1) / 512), 1, 1 ]),
-                    block=tuple([ 512, 1, 1 ]),
-                    args=[ cupy.int32(n), input.data_ptr(), flow.data_ptr(), gradOutput.data_ptr(), gradInput.data_ptr(), None ],
-                    stream=collections.namedtuple('Stream', 'ptr')(torch.cuda.current_stream().cuda_stream)
+                cupy_launch(
+                    'kernel_Softsplat_updateGradInput',
+                    cupy_kernel(
+                        'kernel_Softsplat_updateGradInput',
+                        {
+                            'input': input,
+                            'flow': flow,
+                            'gradOutput': gradOutput,
+                            'gradInput': gradInput,
+                            'gradFlow': gradFlow,
+                        },
+                    ),
+                )(
+                    grid=(int((n + 512 - 1) / 512), 1, 1),
+                    block=(512, 1, 1),
+                    args=[
+                        cupy.int32(n),
+                        input.data_ptr(),
+                        flow.data_ptr(),
+                        gradOutput.data_ptr(),
+                        gradInput.data_ptr(),
+                        None,
+                    ],
+                    stream=collections.namedtuple('Stream', 'ptr')(
+                        torch.cuda.current_stream().cuda_stream
+                    ),
                 )
+
             # end
 
             if gradFlow is not None:
                 n = gradFlow.nelement()
-                cupy_launch('kernel_Softsplat_updateGradFlow', cupy_kernel('kernel_Softsplat_updateGradFlow', {
-                    'input': input,
-                    'flow': flow,
-                    'gradOutput': gradOutput,
-                    'gradInput': gradInput,
-                    'gradFlow': gradFlow
-                }))(
-                    grid=tuple([ int((n + 512 - 1) / 512), 1, 1 ]),
-                    block=tuple([ 512, 1, 1 ]),
-                    args=[ cupy.int32(n), input.data_ptr(), flow.data_ptr(), gradOutput.data_ptr(), None, gradFlow.data_ptr() ],
-                    stream=collections.namedtuple('Stream', 'ptr')(torch.cuda.current_stream().cuda_stream)
+                cupy_launch(
+                    'kernel_Softsplat_updateGradFlow',
+                    cupy_kernel(
+                        'kernel_Softsplat_updateGradFlow',
+                        {
+                            'input': input,
+                            'flow': flow,
+                            'gradOutput': gradOutput,
+                            'gradInput': gradInput,
+                            'gradFlow': gradFlow,
+                        },
+                    ),
+                )(
+                    grid=(int((n + 512 - 1) / 512), 1, 1),
+                    block=(512, 1, 1),
+                    args=[
+                        cupy.int32(n),
+                        input.data_ptr(),
+                        flow.data_ptr(),
+                        gradOutput.data_ptr(),
+                        None,
+                        gradFlow.data_ptr(),
+                    ],
+                    stream=collections.namedtuple('Stream', 'ptr')(
+                        torch.cuda.current_stream().cuda_stream
+                    ),
                 )
-            # end
+
+                # end
 
         elif input.is_cuda == False:
             raise NotImplementedError()
